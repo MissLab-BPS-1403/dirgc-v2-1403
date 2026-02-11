@@ -1,0 +1,39 @@
+{
+  "excel_path": "//10.114.3.41/d/automasimatcha/automasimatcha/data/Split_20260208_091520_10_parts/mishbahi.nur.xlsx_part_9_of_10.xlsx",
+  "recent_excels": [
+    "\\\\10.114.3.41\\d\\automasimatcha\\automasimatcha\\data\\Split_20260208_091520_10_parts\\mishbahi.nur.xlsx_part_9_of_10.xlsx",
+    "\\\\10.114.3.41\\d\\automasimatcha\\automasimatcha\\data\\Split_20260208_091520_10_parts\\mishbahi.nur.xlsx_part_7_of_10.xlsx",
+    "\\\\10.114.3.41\\d\\automasimatcha\\automasimatcha\\data\\Split_20260208_091520_10_parts\\mishbahi.nur.xlsx_part_4_of_10.xlsx",
+    "\\\\10.114.3.41\\d\\automasimatcha\\automasimatcha\\data\\Split_20260208_091520_10_parts\\mishbahi.nur.xlsx_part_1_of_10.xlsx",
+    "\\\\10.114.3.41\\d\\automasimatcha\\automasimatcha\\data\\mishbahi.nur.xlsx",
+    "C:\\Users\\agusw\\automasimatcha\\data\\Direktori_SBR_20260127.xlsx",
+    "C:\\Users\\agusw\\automasimatcha\\data\\Direktori_SBR_20260123.xlsx",
+    "C:\\Users\\agusw\\automasimatcha\\data\\tambah_usaha.xlsx"
+  ],
+  "options": {
+    "mode": "dirgc",
+    "manual_only": false,
+    "headless": false,
+    "keep_open": true,
+    "idle_timeout_s": 300,
+    "web_timeout_s": 60,
+    "range_enabled": true,
+    "start_row": 1,
+    "end_row": 10
+  },
+  "tambah_usaha_excel_path": "C:/Users/agusw/automasimatcha/data/tambah_usaha.xlsx",
+  "tambah_usaha_recent_excels": [
+    "C:\\Users\\agusw\\automasimatcha\\data\\tambah_usaha.xlsx",
+    "C:\\Users\\agusw\\otomasimacha\\data\\tambah_usaha.xlsx"
+  ],
+  "tambah_usaha_options": {
+    "manual_only": true,
+    "headless": false,
+    "keep_open": true,
+    "idle_timeout_s": 300,
+    "web_timeout_s": 30,
+    "range_enabled": false,
+    "start_row": 1,
+    "end_row": 1
+  }
+}

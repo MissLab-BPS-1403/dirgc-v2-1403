@@ -1,0 +1,261 @@
+﻿    for header in headers:
+        try:
+            text = header.inner_text().lower()
+            match_score = 0
+
+            if idsbr and idsbr.lower() in text:
+                match_score += 10
+            if nama_usaha and nama_usaha.lower() in text:
+                match_score += 5
+            if alamat and alamat.lower() in text:
+                match_score += 3
+
+            if match_score >= 3:
+                card = header.locator("xpath=ancestor::div[contains(@class, 'usaha-card')]").first
+                return (header, card)
+        except Exception:
+            continue
+
+    return None
+
+
+def add_usaha(page, monitor, idsbr, nama_usaha, alamat, provinsi, kabupaten, kecamatan, kelurahan, latitude, longitude):
+    """
+    Fungsi untuk tambah usaha baru - IMPROVED VERSION
+    Mencari tombol & form dengan berbagai kemungkinan selector
+    """
+    log_info("Memulai proses tambah usaha baru...")
+    
+    # 1. Cari tombol Tambah Usaha dengan berbagai kemungkinan selector
+    tambah_selectors = [
+        "button:has-text('Tambah Usaha')",
+        "a:has-text('Tambah Usaha')",
+        ".btn-tambah-usaha",
+        "[title='Tambah Usaha']",
+        "button.btn-primary:has-text('Tambah')",
+        "a.btn-primary:has-text('Tambah')",
+    ]
+    
+    tambah_button = None
+    for selector in tambah_selectors:
+        try:
+            locator = page.locator(selector)
+            if locator.count() > 0 and locator.first.is_visible():
+                tambah_button = locator.first
+                log_info(f"Tombol Tambah Usaha ditemukan: {selector}")
+                break
+        except Exception:
+            continue
+    
+    if tambah_button is None:
+        log_warn("Tombol Tambah Usaha tidak ditemukan dengan semua selector.")
+        # Screenshot untuk debugging
+        try:
+            screenshot_path = "debug_no_tambah_button.png"
+            page.screenshot(path=screenshot_path)
+            log_info(f"Screenshot tersimpan: {screenshot_path}")
+        except Exception:
+            pass
+        return False
+    
+    # 2. Klik tombol Tambah Usaha
+    try:
+        monitor.bot_click(tambah_button)
+        page.wait_for_timeout(1500)  # Wait 1.5 detik untuk modal muncul
+    except Exception as e:
+        log_warn(f"Gagal klik tombol Tambah Usaha: {e}")
+        return False
+    
+    # 3. Wait for modal/form - cari berbagai kemungkinan indikator form
+    log_info("Menunggu form tambah usaha muncul...")
+    
+    form_indicators = [
+        "input[placeholder*='NAMA USAHA']",
+        "input[placeholder*='Nama Usaha']",
+        "#nama_usaha",
+        "input[name='nama_usaha']",
+        ".modal-body",
+        ".form-group",
+    ]
+    
+    form_ready = False
+    for indicator in form_indicators:
+        if monitor.wait_for_condition(
+            lambda i=indicator: page.locator(i).count() > 0, timeout_s=10
+        ):
+            log_info(f"Form terdeteksi dengan indikator: {indicator}")
+            form_ready = True
+            break
+    
+    if not form_ready:
+        log_warn("Form Tambah Usaha tidak muncul dalam 10 detik.")
+        try:
+            screenshot_path = "debug_no_form_tambah_usaha.png"
+            page.screenshot(path=screenshot_path)
+            log_info(f"Screenshot tersimpan: {screenshot_path}")
+        except Exception:
+            pass
+        return False
+    
+    # 4. Helper function untuk isi field
+    def fill_by_placeholder(placeholder_text, value, field_name=""):
+        if not value:
+            return False
+        
+        selectors = [
+            f"input[placeholder*='{placeholder_text}']",
+            f"textarea[placeholder*='{placeholder_text}']",
+        ]
+        
+        for selector in selectors:
+            try:
+                locator = page.locator(selector)
+                if locator.count() > 0 and locator.first.is_visible():
+                    monitor.bot_fill(selector, value)
+                    log_info(f"Field '{field_name or placeholder_text}' diisi: {value}")
+                    return True
+            except Exception as e:
+                log_warn(f"Gagal isi field '{field_name}' dengan selector {selector}: {e}")
+                continue
+        
+        return False
+    
+    # 5. Fill Nama Usaha
+    filled_nama = (
+        fill_by_placeholder("NAMA USAHA", nama_usaha, "Nama Usaha") or
+        fill_by_placeholder("Nama Usaha", nama_usaha, "Nama Usaha")
+    )
+    if not filled_nama:
+        log_warn("Gagal mengisi Nama Usaha")
+    
+    # 6. Fill Alamat
+    filled_alamat = (
+        fill_by_placeholder("ALAMAT USAHA", alamat, "Alamat Usaha") or
+        fill_by_placeholder("Alamat Usaha", alamat, "Alamat Usaha") or
+        fill_by_placeholder("ALAMAT", alamat, "Alamat")
+    )
+    if not filled_alamat:
+        log_warn("Gagal mengisi Alamat")
+    
+    # 7. Fill Latitude
+    if latitude:
+        fill_by_placeholder("Latitude", latitude, "Latitude")
+    
+    # 8. Fill Longitude
+    if longitude:
+        fill_by_placeholder("Longitude", longitude, "Longitude")
+    
+    # 9. Handle Dropdowns (Provinsi, Kabupaten, Kecamatan, Kelurahan)
+    # Untuk sekarang skip dulu karena butuh klik dropdown & select option yang kompleks
+    # User bisa isi manual jika diperlukan
+    
+    # 10. Wait sebentar sebelum submit
+    page.wait_for_timeout(500)
+    
+    # 11. Cari tombol Submit/Simpan
+    log_info("Mencari tombol submit...")
+    
+    submit_selectors = [
+        "button:has-text('Simpan')",
+        "button:has-text('Submit')",
+        "button[type='submit']:visible",
+        ".btn-primary:has-text('Simpan')",
+        ".modal-footer button.btn-primary",
+    ]
+    
+    submit_button = None
+    for selector in submit_selectors:
+        try:
+            locator = page.locator(selector)
+            if locator.count() > 0 and locator.first.is_visible():
+                submit_button = locator.first
+                log_info(f"Tombol submit ditemukan: {selector}")
+                break
+        except Exception:
+            continue
+    
+    if submit_button is None:
+        log_warn("Tombol submit tidak ditemukan.")
+        try:
+            screenshot_path = "debug_no_submit_button.png"
+            page.screenshot(path=screenshot_path)
+            log_info(f"Screenshot tersimpan: {screenshot_path}")
+        except Exception:
+            pass
+        return False
+    
+    # 12. Click Submit
+    try:
+        wait_for_block_ui_clear(page, monitor, timeout_s=5)
+        monitor.bot_click(submit_button)
+        log_info("Tombol submit diklik, menunggu response...")
+        page.wait_for_timeout(1000)
+    except Exception as e:
+        log_warn(f"Gagal klik tombol submit: {e}")
+        return False
+    
+    # 13. Wait for success dialog (sweetalert2/swal2)
+    log_info("Menunggu dialog sukses...")
+    
+    success_texts = [
+        "berhasil",
+        "sukses",
+        "success",
+        "Data submitted successfully",
+        "Data berhasil disimpan",
+    ]
+    
+    dialog_found = False
+    for text in success_texts:
+        try:
+            locator = page.locator(f".swal2-popup:has-text('{text}'), .modal:has-text('{text}')")
+            if monitor.wait_for_condition(
+                lambda l=locator: l.count() > 0 and l.first.is_visible(), timeout_s=15
+            ):
+                log_info(f"Dialog sukses terdeteksi dengan text: {text}")
+                dialog_found = True
+                break
+        except Exception:
+            continue
+    
+    if not dialog_found:
+        log_warn("Dialog sukses tidak muncul dalam 15 detik.")
+        try:
+            screenshot_path = "debug_no_success_dialog_tambah.png"
+            page.screenshot(path=screenshot_path)
+            log_info(f"Screenshot tersimpan: {screenshot_path}")
+        except Exception:
+            pass
+        return False
+    
+    # 14. Click OK/Tutup button pada dialog
+    ok_selectors = [
+        "button:has-text('OK')",
+        "button:has-text('Tutup')",
+        ".swal2-confirm",
+        ".btn-primary:has-text('OK')",
+    ]
+    
+    for selector in ok_selectors:
+        try:
+            locator = page.locator(selector)
+            if locator.count() > 0 and locator.first.is_visible():
+                monitor.bot_click(locator.first)
+                log_info(f"Tombol OK diklik: {selector}")
+                break
+        except Exception:
+            continue
+    
+    # 15. Wait for dialog to close
+    monitor.wait_for_condition(
+        lambda: page.locator(".swal2-popup, .modal.show").count() == 0,
+        timeout_s=10
+    )
+    
+    # 16. Ensure back to main page
+    if not page.url.startswith(TARGET_URL):
+        log_info("Kembali ke halaman utama...")
+        monitor.bot_goto(TARGET_URL)
+    
+    log_info("Proses tambah usaha berhasil!")
+    return True

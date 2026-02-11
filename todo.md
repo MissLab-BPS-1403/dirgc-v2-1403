@@ -1,0 +1,5 @@
+- [x] Update excel.py to handle hasil_gc=2
+- [x] Add add_usaha function in browser.py with provinsi, kabupaten, kecamatan, kelurahan
+- [x] Modify processor.py to check hasil_gc==2 and call add_usaha if no results
+- [x] Update logging and run_logs for tambah usaha status
+- [x] Update README with new columns and hasil_gc=2
