@@ -91,15 +91,17 @@ def process_excel_rows(
     rows = rows[start_row - 1 : end_row]
     selected_rows = len(rows)
     stats = {
-        "total": selected_rows,
-        "processed": 0,
-        "skipped_no_results": 0,
-        "skipped_gc": 0,
-        "skipped_duplikat": 0,
-        "skipped_no_tandai": 0,
-        "hasil_gc_set": 0,
-        "hasil_gc_skipped": 0,
-    }
+    "total": selected_rows,
+    "processed": 0,
+    "skipped_no_results": 0,
+    "skipped_gc": 0,
+    "skipped_duplikat": 0,
+    "skipped_no_tandai": 0,
+    "hasil_gc_set": 0, # Berhasil Tandai
+    "hasil_gc_edited": 0, # Berhasil Tandai via Edit
+    "hasil_gc_skipped": 0,
+    "hasil_gc_invalid_coordinate": 0,
+}
     log_info(
         "Start processing rows.",
         total=selected_rows,
@@ -126,6 +128,15 @@ def process_excel_rows(
         longitude = row["longitude"]
         hasil_gc = row["hasil_gc"]
 
+        # Log tambahan untuk mengintip isi data row
+        log_info(
+            "Row content loaded.",
+            nama=nama_usaha or "-",
+            lat=latitude or "-",
+            long=longitude or "-",
+            gc_status=hasil_gc or "-"
+        )
+        
         log_info(
             "Processing row.",
             _spacer=True,
@@ -174,7 +185,7 @@ def process_excel_rows(
 
             if (
                 card_scope.locator(".gc-badge", has_text="Sudah GC").count()
-                > 0
+                > 1 #mengabaikan Sudah GC
             ):
                 log_info("Skipped: Sudah GC.", idsbr=idsbr or "-")
                 stats["skipped_gc"] += 1
@@ -191,24 +202,69 @@ def process_excel_rows(
                 note = "Duplikat"
                 continue
 
-            tandai_locator = page.locator(".btn-tandai")
+
+
+            # PATCH untuk update Koordinat
+            # 1. Ambil Lat/Long dari Web
+            lat_raw = card_scope.locator(".gc-info-item", has_text="Latitude").locator(".gc-info-value").inner_text().strip()
+            long_raw = card_scope.locator(".gc-info-item", has_text="Longitude").locator(".gc-info-value").inner_text().strip()
+
+            # 2. Fungsi Pembantu Validasi (agar kode bersih)
+            def is_coord_valid(lat, lon):
+                invalid_indicators = ["-", "", "0", "0.0", "undefined", "null", "none", "nan"]
+                if str(lat).lower() in invalid_indicators or str(lon).lower() in invalid_indicators:
+                    return False
+                try:
+                    float(str(lat).replace(',', '.'))
+                    float(str(lon).replace(',', '.'))
+                    return True
+                except (ValueError, TypeError):
+                    return False
+
+            web_coord_valid = is_coord_valid(lat_raw, long_raw)
+
+            # 3. Inisialisasi Locator Tombol
+            tandai_locator = card_scope.locator(".btn-tandai")
+            edit_locator = card_scope.locator(".btn-gc-edit")
+            hasil_edit = False  # flag hasil edit
+
+            
+            # 4. Logika Percabangan
             if tandai_locator.count() == 0:
-                log_warn(
-                    "Tombol Tandai tidak ditemukan; skipping.",
-                    idsbr=idsbr or "-",
-                )
-                stats["skipped_no_tandai"] += 1
-                status = "gagal"
-                note = "Tombol Tandai tidak ditemukan"
-                continue
+                # Skenario: Tombol Tandai Tidak Ada
+                if web_coord_valid:
+                    # KONDISI 1: Sudah valid di web, skip saja
+                    # Pesan dinamis agar log tidak ambigu
+                    is_gc = card_scope.locator(".gc-badge", has_text="Sudah GC").count() > 0
+                    msg = f"{'Sudah GC' if is_gc else 'button tandai tidak ditemukan'}; lat/long sudah valid"
+                    
+                    # Tulisakan note
+                    log_info(f"Skipped: {msg}.", idsbr=idsbr or "-")
+                    note = msg
+                    stats["skipped_gc"] += 1
+                    status = "skipped"
+                    continue
+                else:
+                    # KONDISI 2: koordinat Web invalid, cari tombol edit
+                    if edit_locator.count() > 0:
+                        log_info("Info: Menggunakan tombol Edit...", idsbr=idsbr or "-")
+                        tandai_locator = edit_locator
+                        stats["hasil_gc_invalid_coordinate"] += 1
+                        hasil_edit = True  # merupakan hasil edit
+                    else:
+                        # KONDISI 3: Gagal total
+                        log_warn("Gagal: Tombol tandai tidak ada, koordinat web invalid, & syarat edit tidak terpenuhi.", idsbr=idsbr or "-")
+                        stats["skipped_no_tandai"] += 1
+                        note = "button tandai tidak ditemukan; lat/long invalid; tidak bisa edit/input"
+                        status = "gagal"
+                        continue
+            
+            # Pengecekan visibilitas untuk locator yang terpilih (tandai atau edit)
             if not tandai_locator.first.is_visible():
-                log_warn(
-                    "Tombol Tandai tidak terlihat; skipping.",
-                    idsbr=idsbr or "-",
-                )
+                log_warn("Tombol aksi tidak terlihat; skipping.", idsbr=idsbr or "-")
                 stats["skipped_no_tandai"] += 1
                 status = "gagal"
-                note = "Tombol Tandai tidak terlihat"
+                note = "Tombol aksi (tandai/edit) tidak terlihat"
                 continue
 
             wait_for_block_ui_clear(page, monitor, timeout_s=15)
@@ -471,6 +527,11 @@ def process_excel_rows(
             status = "error"
             note = str(exc)
         finally:
+            # Update note SEBELUM append
+            if (status or "error") == "berhasil" and hasil_edit:
+                note = f"{note}; Update via Edit".strip("; ")
+                stats["hasil_gc_edited"] += 1
+            
             run_log_rows.append(
                 {
                     "no": excel_row,
@@ -509,6 +570,20 @@ def process_excel_rows(
                 except Exception:
                     pass
 
-    log_info("Processing completed.", _spacer=True, _divider=True, **stats)
-    write_run_log(run_log_rows, run_log_path)
-    log_info("Run log saved.", path=str(run_log_path))
+
+    # PATCH Logging
+    # 1. Log Ringkasan ke Terminal
+    log_info("Processing completed.", _spacer=True, _divider=True)
+    log_info(
+        "Summary Details:",
+        Berhasil_Murni=stats["hasil_gc_set"],
+        Berhasil_Via_Edit=stats["hasil_gc_edited"],
+        Skip_Sudah_GC=stats["skipped_gc"],
+        Skip_Koordinat_Invalid=stats["hasil_gc_invalid_coordinate"],
+        Skip_Duplikat=stats["skipped_duplikat"],
+        Total_Processed=stats["processed"]
+    )
+
+    # 2. Simpan Log
+    write_run_log(run_log_rows, run_log_path, stats=stats)
+    log_info("Run log & Summary sheet saved.", path=str(run_log_path))

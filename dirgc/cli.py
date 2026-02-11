@@ -212,8 +212,8 @@ def run_dirgc(
             else:
                 input("Press Enter to close the browser...")
 
-        context.close()
-        browser.close()
+        # context.close()
+        # browser.close()
 
 
 def main():

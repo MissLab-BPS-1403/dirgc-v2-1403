@@ -35,7 +35,7 @@ def build_run_log_path(now=None, prefix=None):
     return date_dir / filename
 
 
-def write_run_log(rows, output_path):
+def write_run_log(rows, output_path, stats=None):
     columns = [
         "no",
         "idsbr",
@@ -70,9 +70,20 @@ def write_run_log(rows, output_path):
         ) from exc
 
     workbook = openpyxl.Workbook()
-    sheet = workbook.active
-    sheet.append(columns)
+    
+    # Sheet 1
+    sheet1 = workbook.active
+    sheet1.title = "Run_Log"
+    sheet1.append(columns)
     for row in rows:
-        sheet.append([row.get(col, "") for col in columns])
+        sheet1.append([row.get(col, "") for col in columns])
+    
+    # Sheet 2
+    if stats:
+        sheet2 = workbook.create_sheet(title="Summary")
+        stats_keys = list(stats.keys())
+        sheet2.append(stats_keys)
+        sheet2.append([stats.get(k) for k in stats_keys])
+        
     workbook.save(output_path)
     workbook.close()
